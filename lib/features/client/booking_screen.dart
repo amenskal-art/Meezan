@@ -122,7 +122,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   builder: (context, snap) {
                     final lawyers = snap.data ?? [];
                     return DropdownButtonFormField<String>(
-                      initialValue: _lawyer?.uid,
+                      value: _lawyer?.uid,
                       decoration: InputDecoration(
                           labelText: t.chooseLawyer,
                           prefixIcon: const Icon(Icons.person_search)),
