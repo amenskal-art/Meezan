@@ -35,13 +35,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Patch Android config (minSdk 23 required by firebase_auth)
+      - name: Patch Android config (minSdk 23 + NDK 27 required by Firebase plugins)
         run: |
           f=android/app/build.gradle.kts
           [ -f "$f" ] || f=android/app/build.gradle
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/'        "$f" || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' "$f" || true
-          echo "--- patched $f ---"; grep -n "minSdk" "$f" || true
+          sed -i 's/ndkVersion = flutter.ndkVersion/ndkVersion = "27.0.12077973"/' "$f" || true
+          sed -i 's/ndkVersion flutter.ndkVersion/ndkVersion "27.0.12077973"/' "$f" || true
+          echo "--- patched $f ---"; grep -n "minSdk\|ndkVersion" "$f" || true
 
       - name: Pub get + gen l10n
         run: |
