@@ -103,7 +103,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
           Row(children: [
             Expanded(
               child: DropdownButtonFormField<String?>(
-                initialValue: _spec,
+                value: _spec,
                 isExpanded: true,
                 decoration:
                     InputDecoration(labelText: t.specialization, isDense: true),
@@ -120,7 +120,7 @@ class _DirectoryScreenState extends State<DirectoryScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButtonFormField<String?>(
-                initialValue: _gov,
+                value: _gov,
                 isExpanded: true,
                 decoration:
                     InputDecoration(labelText: t.governorate, isDense: true),
