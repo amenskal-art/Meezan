@@ -1,26 +1,102 @@
-name: Android CI
+name: CI - Build MEEZAN (Android APK + Web)
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    timeout-minutes: 45
     steps:
-    - uses: actions/checkout@v4
-    - name: set up JDK 11
-      uses: actions/setup-java@v4
-      with:
-        java-version: '11'
-        distribution: 'temurin'
-        cache: gradle
+      - uses: actions/checkout@v4
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.32.x"
+          cache: true
+
+      # The repo intentionally ships NO android/ios/web folders.
+      # We regenerate them fresh at CI time so Gradle/AGP/Kotlin always
+      # match the Flutter SDK (same philosophy as compiling AUSBC at CI).
+      - name: Regenerate platform scaffolding
+        run: |
+          flutter create --platforms=android,web --org com.meezan --project-name meezan .
+          # flutter create adds the template counter test when test/widget_test.dart
+          # is missing; it references a MyApp we don't have, so drop it.
+          rm -f test/widget_test.dart
+
+      # Installed AFTER flutter create so its Gradle-file auto-cache step
+      # has actual gradle files to find (the repo ships none by design).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Patch Android config (minSdk 23 required by firebase_auth)
+        run: |
+          f=android/app/build.gradle.kts
+          [ -f "$f" ] || f=android/app/build.gradle
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/'        "$f" || true
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' "$f" || true
+          echo "--- patched $f ---"; grep -n "minSdk" "$f" || true
+
+      - name: Pub get + gen l10n
+        run: |
+          flutter pub get
+          flutter gen-l10n
+
+      - name: Analyze (non-blocking)
+        run: flutter analyze
+        continue-on-error: true
+
+      - name: Tests
+        run: flutter test
+
+      # Firebase config is injected via --dart-define from repo Secrets.
+      # See README section "3. GitHub Secrets".
+      - name: Build Android APK
+        env:
+          FB_PROJECT_ID: ${{ secrets.FB_PROJECT_ID }}
+          FB_SENDER_ID: ${{ secrets.FB_SENDER_ID }}
+          FB_STORAGE_BUCKET: ${{ secrets.FB_STORAGE_BUCKET }}
+          FB_ANDROID_API_KEY: ${{ secrets.FB_ANDROID_API_KEY }}
+          FB_ANDROID_APP_ID: ${{ secrets.FB_ANDROID_APP_ID }}
+        run: |
+          flutter build apk --release \
+            --dart-define=FB_PROJECT_ID="$FB_PROJECT_ID" \
+            --dart-define=FB_SENDER_ID="$FB_SENDER_ID" \
+            --dart-define=FB_STORAGE_BUCKET="$FB_STORAGE_BUCKET" \
+            --dart-define=FB_ANDROID_API_KEY="$FB_ANDROID_API_KEY" \
+            --dart-define=FB_ANDROID_APP_ID="$FB_ANDROID_APP_ID"
+
+      - name: Build Web (app + admin panel)
+        env:
+          FB_PROJECT_ID: ${{ secrets.FB_PROJECT_ID }}
+          FB_SENDER_ID: ${{ secrets.FB_SENDER_ID }}
+          FB_STORAGE_BUCKET: ${{ secrets.FB_STORAGE_BUCKET }}
+          FB_WEB_API_KEY: ${{ secrets.FB_WEB_API_KEY }}
+          FB_WEB_APP_ID: ${{ secrets.FB_WEB_APP_ID }}
+          FB_AUTH_DOMAIN: ${{ secrets.FB_AUTH_DOMAIN }}
+        run: |
+          flutter build web --release \
+            --dart-define=FB_PROJECT_ID="$FB_PROJECT_ID" \
+            --dart-define=FB_SENDER_ID="$FB_SENDER_ID" \
+            --dart-define=FB_STORAGE_BUCKET="$FB_STORAGE_BUCKET" \
+            --dart-define=FB_WEB_API_KEY="$FB_WEB_API_KEY" \
+            --dart-define=FB_WEB_APP_ID="$FB_WEB_APP_ID" \
+            --dart-define=FB_AUTH_DOMAIN="$FB_AUTH_DOMAIN"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: meezan-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: meezan-web
+          path: build/web
