@@ -154,7 +154,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           prefixIcon: const Icon(Icons.lock_outline))),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    initialValue: _governorate,
+                    value: _governorate,
                     decoration: InputDecoration(
                         labelText: t.governorate,
                         prefixIcon: const Icon(Icons.location_on_outlined)),
@@ -169,7 +169,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   if (_role == 'lawyer') ...[
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      initialValue: _specialization,
+                      value: _specialization,
                       decoration: InputDecoration(
                           labelText: t.specialization,
                           prefixIcon: const Icon(Icons.school_outlined)),
