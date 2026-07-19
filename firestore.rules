@@ -1,0 +1,80 @@
+rules_version = '2';
+// MEEZAN Firestore security rules.
+// Roles: 'client' | 'lawyer'. Admins are identified by a custom auth claim: token.admin == true.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin()  { return signedIn() && request.auth.token.admin == true; }
+    function isSelf(uid){ return signedIn() && request.auth.uid == uid; }
+
+    // ---------- USERS ----------
+    match /users/{uid} {
+      // A user reads their own profile; admin reads everyone.
+      // Any signed-in user may read APPROVED lawyer profiles (public directory).
+      allow read: if isSelf(uid) || isAdmin()
+        || (signedIn() && resource.data.role == 'lawyer' && resource.data.status == 'approved');
+
+      // Registration: user creates their own doc. Lawyers MUST start as 'pending'.
+      allow create: if isSelf(uid)
+        && request.resource.data.role in ['client', 'lawyer']
+        && (request.resource.data.role == 'client'
+            || request.resource.data.status == 'pending');
+
+      // Users may edit their own profile but can NEVER change role or status.
+      // Only an admin can flip status (approve / reject).
+      allow update: if isAdmin()
+        || (isSelf(uid)
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status == resource.data.status);
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- CASES (created & managed by the lawyer) ----------
+    match /cases/{caseId} {
+      allow read: if isAdmin() || (signedIn()
+        && (resource.data.clientId == request.auth.uid
+            || resource.data.lawyerId == request.auth.uid));
+      allow create: if signedIn() && request.resource.data.lawyerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.lawyerId == request.auth.uid;
+    }
+
+    // ---------- APPOINTMENTS / DEADLINES ----------
+    match /appointments/{id} {
+      allow read: if isAdmin() || (signedIn()
+        && (resource.data.clientId == request.auth.uid
+            || resource.data.lawyerId == request.auth.uid));
+      // Client books with themselves as clientId, lawyer creates deadlines for self.
+      allow create: if signedIn()
+        && (request.resource.data.clientId == request.auth.uid
+            || request.resource.data.lawyerId == request.auth.uid);
+      allow update, delete: if signedIn()
+        && (resource.data.clientId == request.auth.uid
+            || resource.data.lawyerId == request.auth.uid);
+    }
+
+    // ---------- INVOICES (lawyer-owned, client-readable) ----------
+    match /invoices/{id} {
+      allow read: if isAdmin() || (signedIn()
+        && (resource.data.clientId == request.auth.uid
+            || resource.data.lawyerId == request.auth.uid));
+      allow create: if signedIn() && request.resource.data.lawyerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.lawyerId == request.auth.uid;
+    }
+
+    // ---------- DOCUMENT VAULT (metadata; files live in Storage) ----------
+    match /documents/{id} {
+      allow read: if isAdmin() || (signedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || request.auth.uid in resource.data.sharedWith));
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ---------- MAIL QUEUE (Trigger Email extension; server-side only) ----------
+    match /mail/{id} {
+      allow read, write: if false;
+    }
+  }
+}

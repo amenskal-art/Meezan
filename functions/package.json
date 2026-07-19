@@ -1,0 +1,14 @@
+{
+  "name": "meezan-functions",
+  "description": "MEEZAN Cloud Functions: Gemini AI proxy, lawyer approval emails, admin tooling",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "scripts": {
+    "set-admin": "node scripts/set-admin.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^5.1.1",
+    "@google/generative-ai": "^0.21.0"
+  }
+}
