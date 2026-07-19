@@ -33,7 +33,7 @@ class BillingScreen extends StatelessWidget {
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               DropdownButtonFormField<String>(
-                initialValue: selected.id,
+                value: selected.id,
                 isExpanded: true,
                 decoration: InputDecoration(labelText: t.caseTitle),
                 items: [
